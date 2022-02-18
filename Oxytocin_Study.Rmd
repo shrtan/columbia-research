@@ -1,0 +1,189 @@
+---
+title: "Oxytocin Study"
+author: "Shreya Rao"
+date: "1/13/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse); library(magrittr);
+library(lubridate)
+library(kableExtra)
+library(ggplot2)
+```
+
+```{r, include=FALSE}
+oxy <- read_csv2("oxy.csv")
+
+oxy_means <- oxy %>% select(ID, oxytocin_during_childbirth, infant_sex_A, "3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "3y_CBQ_NEGAFF_score", "4y_CBQ_NEGAFF_score", "5y_CBQ_NEGAFF_score", "3y_CBQ_EFFCON_score", "4y_CBQ_EFFCON_score", "5y_CBQ_EFFCON_score")
+
+oxy_means <- oxy_means %>% drop_na(oxytocin_during_childbirth)
+
+oxy_means %>% select("3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "3y_CBQ_NEGAFF_score", "4y_CBQ_NEGAFF_score", "5y_CBQ_NEGAFF_score", "3y_CBQ_EFFCON_score", "4y_CBQ_EFFCON_score", "5y_CBQ_EFFCON_score") %>% is.na() %>% colSums()
+```
+
+**Mean Scores and SD:**
+```{r, include=FALSE}
+means <- oxy_means %>% 
+  select(oxytocin_during_childbirth, "3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "3y_CBQ_NEGAFF_score", "4y_CBQ_NEGAFF_score", "5y_CBQ_NEGAFF_score", "3y_CBQ_EFFCON_score", "4y_CBQ_EFFCON_score", "5y_CBQ_EFFCON_score") %>%
+  rename(oxytocin = oxytocin_during_childbirth) %>%
+  group_by(oxytocin) %>% 
+  summarize(N = n(), 
+            mean_surgency_3 = mean(`3y_CBQ_SURGENCY_score`, na.rm = T), mean_surgency_4 = mean(`4y_CBQ_SURGENCY_score`, na.rm = T), mean_surgency_5 = mean(`5y_CBQ_SURGENCY_score`, na.rm = T),
+            mean_NEGAFF_3 = mean(`3y_CBQ_NEGAFF_score`, na.rm = T), mean_NEGAFF_4 = mean(`4y_CBQ_NEGAFF_score`, na.rm = T), mean_NEGAFF_5 = mean(`5y_CBQ_NEGAFF_score`, na.rm = T),
+            mean_EFFCON_3 = mean(`3y_CBQ_EFFCON_score`, na.rm = T), mean_EFFCON_4 = mean(`4y_CBQ_EFFCON_score`, na.rm = T), mean_EFFCON_5 = mean(`5y_CBQ_EFFCON_score`, na.rm = T), 
+            
+            sd_surgency_3 = sd(`3y_CBQ_SURGENCY_score`, na.rm = T), sd_surgency_4 = sd(`4y_CBQ_SURGENCY_score`, na.rm = T), sd_surgency_5 = sd(`5y_CBQ_SURGENCY_score`, na.rm = T),
+            sd_NEGAFF_3 = sd(`3y_CBQ_NEGAFF_score`, na.rm = T), sd_NEGAFF_4 = sd(`4y_CBQ_NEGAFF_score`, na.rm = T), sd_NEGAFF_5 = sd(`5y_CBQ_NEGAFF_score`, na.rm = T),
+            sd_EFFCON_3 = sd(`3y_CBQ_EFFCON_score`, na.rm = T), sd_EFFCON_4 = sd(`4y_CBQ_EFFCON_score`, na.rm = T), sd_EFFCON_5 = sd(`5y_CBQ_EFFCON_score`, na.rm = T))
+
+#missing values
+missing <- oxy_means %>% 
+  select(oxytocin_during_childbirth, "3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "3y_CBQ_NEGAFF_score", "4y_CBQ_NEGAFF_score", "5y_CBQ_NEGAFF_score", "3y_CBQ_EFFCON_score", "4y_CBQ_EFFCON_score", "5y_CBQ_EFFCON_score") %>%
+  rename(oxytocin = oxytocin_during_childbirth) %>%
+  group_by(oxytocin) %>% 
+  summarize(N = n(), 
+            missing_surgency_3 = sum(is.na(`3y_CBQ_SURGENCY_score`)), missing_surgency_4 = sum(is.na(`4y_CBQ_SURGENCY_score`)), missing_surgency_5 = sum(is.na(`5y_CBQ_SURGENCY_score`)),
+            missing_NEGAFF_3 = sum(is.na(`3y_CBQ_NEGAFF_score`)), missing_NEGAFF_4 = sum(is.na(`4y_CBQ_NEGAFF_score`)), missing_NEGAFF_5 = sum(is.na(`5y_CBQ_NEGAFF_score`)),
+            missing_EFFCON_3 = sum(is.na(`3y_CBQ_EFFCON_score`)), missing_EFFCON_4 = sum(is.na(`4y_CBQ_EFFCON_score`)), missing_EFFCON_5 = sum(is.na(`5y_CBQ_EFFCON_score`)))
+
+```
+
+```{r }
+print.data.frame(means)
+
+print.data.frame(missing)
+```
+
+**Plots:**
+```{r, include=FALSE}
+#Surgency
+sur_means <- oxy_means %>% 
+  select(`3y_CBQ_SURGENCY_score`, `4y_CBQ_SURGENCY_score`, `5y_CBQ_SURGENCY_score`, oxytocin_during_childbirth) %>% 
+  group_by(oxytocin_during_childbirth) %>%
+  summarise(mean_3 = mean(`3y_CBQ_SURGENCY_score`, na.rm = T), mean_4 = mean(`4y_CBQ_SURGENCY_score`, na.rm = T), mean_5 = mean(`5y_CBQ_SURGENCY_score`, na.rm = T))
+sur_means
+```
+
+```{r}
+sur_means %>% 
+  gather(age, mean_score, mean_3:mean_5) %>% 
+  rbind(c(3, 'mean_3', mean(oxy_means$`3y_CBQ_SURGENCY_score`, na.rm = T)), c(3, 'mean_4', mean(oxy_means$`4y_CBQ_SURGENCY_score`, na.rm = T)), c(3, 'mean_5', mean(oxy_means$`5y_CBQ_SURGENCY_score`, na.rm = T))) %>%
+  mutate(oxytocin_during_childbirth = as.factor(oxytocin_during_childbirth), mean_score = as.numeric(mean_score)) %>%
+  ggplot() + 
+  geom_line(aes(x=age, y=mean_score, group=oxytocin_during_childbirth, col = oxytocin_during_childbirth)) + 
+  scale_color_discrete(name = "Oxytocin", labels = c("No Oxytocin", "Oxytocin", "Overall")) +
+  xlab("Age") + ylab("Surgency Score")
+```
+
+```{r, include=FALSE}
+#EFFCON
+EFFCON_means <- oxy_means %>% 
+  select(`3y_CBQ_EFFCON_score`, `4y_CBQ_EFFCON_score`, `5y_CBQ_EFFCON_score`, oxytocin_during_childbirth) %>% 
+  group_by(oxytocin_during_childbirth) %>%
+  summarise(mean_3 = mean(`3y_CBQ_EFFCON_score`, na.rm = T), mean_4 = mean(`4y_CBQ_EFFCON_score`, na.rm = T), mean_5 = mean(`5y_CBQ_EFFCON_score`, na.rm = T))
+EFFCON_means
+```
+
+```{r}
+EFFCON_means %>% 
+  gather(age, mean_score, mean_3:mean_5) %>% 
+  rbind(c(3, 'mean_3', mean(oxy_means$`3y_CBQ_EFFCON_score`, na.rm = T)), c(3, 'mean_4', mean(oxy_means$`4y_CBQ_EFFCON_score`, na.rm = T)), c(3, 'mean_5', mean(oxy_means$`5y_CBQ_EFFCON_score`, na.rm = T))) %>%
+  mutate(oxytocin_during_childbirth = as.factor(oxytocin_during_childbirth), mean_score = as.numeric(mean_score)) %>%
+  ggplot() + 
+  geom_line(aes(x=age, y=mean_score, group=oxytocin_during_childbirth, col = oxytocin_during_childbirth)) + 
+  scale_color_discrete(name = "Oxytocin", labels = c("No Oxytocin", "Oxytocin", "Overall")) +
+  xlab("Age") + ylab("EFFCON Score")
+```
+
+```{r, include=FALSE}
+#NEGAFF
+NEGAFF_means <- oxy_means %>% 
+  select(`3y_CBQ_NEGAFF_score`, `4y_CBQ_NEGAFF_score`, `5y_CBQ_NEGAFF_score`, oxytocin_during_childbirth) %>% 
+  group_by(oxytocin_during_childbirth) %>%
+  summarise(mean_3 = mean(`3y_CBQ_NEGAFF_score`, na.rm = T), mean_4 = mean(`4y_CBQ_NEGAFF_score`, na.rm = T), mean_5 = mean(`5y_CBQ_NEGAFF_score`, na.rm = T))
+```
+
+```{r}
+NEGAFF_means %>% 
+  gather(age, mean_score, mean_3:mean_5) %>% 
+  rbind(c(3, 'mean_3', mean(oxy_means$`3y_CBQ_NEGAFF_score`, na.rm = T)), c(3, 'mean_4', mean(oxy_means$`4y_CBQ_NEGAFF_score`, na.rm = T)), c(3, 'mean_5', mean(oxy_means$`5y_CBQ_NEGAFF_score`, na.rm = T))) %>%
+  mutate(oxytocin_during_childbirth = as.factor(oxytocin_during_childbirth), mean_score = as.numeric(mean_score)) %>%
+  ggplot() + 
+  geom_line(aes(x=age, y=mean_score, group=oxytocin_during_childbirth, col = oxytocin_during_childbirth)) + 
+  scale_color_discrete(name = "Oxytocin", labels = c("No Oxytocin", "Oxytocin", "Overall")) +
+  xlab("Age") + ylab("NEGAFF Score")
+```
+
+
+**Surgency Model:**
+E[Y] = 4.36 - 0.0089oxycotin + 0.0169sex + 0.0067age - 0.022 oxycotin*age
+
+```{r, include=FALSE}
+#surgency dataset
+sur_data <- oxy_means %>% select("ID", "oxytocin_during_childbirth", "3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "infant_sex_A") %>%
+  gather(age, surgency, `3y_CBQ_SURGENCY_score`:`5y_CBQ_SURGENCY_score`, factor_key=TRUE)
+
+#age assignment
+sur_data$age <- ifelse(sur_data$age == "3y_CBQ_SURGENCY_score", 3, ifelse(sur_data$age == "4y_CBQ_SURGENCY_score", 4, 5))
+```
+
+```{r}
+#model
+sur_model <- lm(surgency~oxytocin_during_childbirth+infant_sex_A+age+oxytocin_during_childbirth*age, data = sur_data)
+summary(sur_model)
+```
+
+
+**Outlier Analysis:**
+
+```{r, include=FALSE}
+t <- oxy %>% 
+  select("3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "3y_CBQ_NEGAFF_score", "4y_CBQ_NEGAFF_score", "5y_CBQ_NEGAFF_score", "3y_CBQ_EFFCON_score", "4y_CBQ_EFFCON_score", "5y_CBQ_EFFCON_score") %>% drop_na() 
+
+outliers <- function(x) {
+
+  Q1 <- quantile(x, probs=.25, na.rm = TRUE)
+  Q3 <- quantile(x, probs=.75, na.rm = TRUE)
+  iqr = Q3-Q1
+
+ upper_limit = Q3 + (iqr*1.5)
+ lower_limit = Q1 - (iqr*1.5)
+
+ x > upper_limit | x < lower_limit
+}
+
+show_outliers <- function(df) {
+  df[outliers(df)]
+}
+
+remove_outliers <- function(df, cols = names(df)) {
+  for (col in cols) {
+    df <- df[!outliers(df[[col]]),]
+  }
+  df
+}
+```
+
+```{r}
+t %>% apply(., 2, show_outliers)
+```
+
+Surgency Model without Outliers:
+```{r, include=FALSE}
+#surgency dataset without outliers
+sur_data_no_outliers <- oxy_means %>% select("ID", "oxytocin_during_childbirth", "3y_CBQ_SURGENCY_score", "4y_CBQ_SURGENCY_score", "5y_CBQ_SURGENCY_score", "infant_sex_A") %>% filter("3y_CBQ_SURGENCY_score" != 6.583 & "3y_CBQ_SURGENCY_score" != 2.417 & "5y_CBQ_SURGENCY_score" != 2.250 & "5y_CBQ_SURGENCY_score" != 2.182) %>%
+  gather(age, surgency, `3y_CBQ_SURGENCY_score`:`5y_CBQ_SURGENCY_score`, factor_key=TRUE)
+
+#age assignment
+sur_data_no_outliers$age <- ifelse(sur_data_no_outliers$age == "3y_CBQ_SURGENCY_score", 3, ifelse(sur_data$age == "4y_CBQ_SURGENCY_score", 4, 5))
+```
+
+```{r}
+#model
+sur_model <- lm(surgency~oxytocin_during_childbirth+infant_sex_A+age+oxytocin_during_childbirth*age, data = sur_data_no_outliers)
+summary(sur_model)
+```
