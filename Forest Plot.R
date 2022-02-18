@@ -1,6 +1,7 @@
 library(forestplot)
 library(dplyr)
-library(ggplot2)
+library(tidyverse)
+library(datamart)
 
 setwd('/Users/Shreya/Documents/Research/')
 
@@ -8,87 +9,197 @@ setwd('/Users/Shreya/Documents/Research/')
 data <- read.csv("Maternal South Africa v Northern Plains Alc and Dev.csv")
 data <- as_tibble(data)
 
-## Data Cleaning
+#Data Cleaning
 data <- na.omit(data)
 data <- data[data$Estimate != 0 & data$VariableName != "Education Missing" &
                data$VariableName!="Antenatal Care Visit Missing" & 
-               data$VariableName!="Age At Mullen" &
-               data$VariableName!="Female", ]
- 
-names(data)[1] <- "Location"
-data$Characteristics <- factor(data$Characteristics, levels = c("Maternal", "Delivery and Child"))
+               data$VariableName!="Age At Mullen" & 
+               !(data$VariableName == "Female" & data$Characteristics == "Maternal"), ]
 
-#Tests and Locations
+
+names(data)[1] <- "Location"
+
+#Scores and Locations
 unique(data$Test)
 unique(data$Location)
 
-####
-SA: Cognitive
+
+
+#confidence intervals formatted
+ci_values <- function(low, high) {
+  paste("(", format(round(low, 2), nsmall=2), 
+        ",", format(round(high, 2), nsmall=2), 
+        ")", sep = "")
+}
+
+#smd values
+smd_value <- function(smd) {
+  format(round(smd,2), nsmall=2)
+}
+
+
+#formatting Variables
+fv <- function(s) {
+  #bmi
+  if(grepl("BMI", s, fixed = TRUE)) {
+    t <- str_remove(s, "BMI ")
+    return(paste("  ", t, sep =""))
+  }
+  
+  #parity
+  if(grepl("Parity", s, fixed = TRUE)) {
+    t <- substr(s, nchar(s), nchar(s))
+    t <- ifelse(t == "3", ">3", t)
+    return(paste("  ", t, sep =""))
+  }
+  
+  #antenatal
+  if(grepl("Antenatal", s, fixed = TRUE)) {
+    t <- str_remove(s, "Antenatal Care Visit ")
+    return(paste("  ", t, sep =""))
+  }
+  
+  #birthweight
+  if(grepl("Birthweight", s, fixed = TRUE)) {
+    t <- gsub("[^0-9<-]", "", s)
+    t <- ifelse(t == "<2000", paste("Very low birthweight (", t, "g)", sep =""),
+                paste("Low-moderate birthweight (", t, "g)", sep =""))
+    t <- strcap(t)
+    return(paste("  ", t, sep =""))
+  }
+  
+  #height
+  if(grepl("Height", s, fixed = TRUE)) {
+    t <- str_remove(s, "Maternal Height ")
+    return(paste("  ", t, "cm", sep =""))
+  }
+  
+  #marital status
+  if(grepl("Marital", s, fixed = TRUE)) {
+    return("Married")
+  }
+  
+  #employment
+  if(grepl("Employement", s, fixed = TRUE)) {
+    return("Employed")
+  }
+  
+  #depression
+  if(grepl("Depression", s, fixed = TRUE)) {
+    loc <- gregexpr(pattern ='Score', s)[[1]][1]
+    part1 <- strcap(substr(s, 1,loc-3))
+    part2 <- substr(s, loc+6, nchar(s))
+    t <- paste("  ", part1, " (EPDS score ", part2, ")", sep="")
+    return(t)
+  }
+  
+  #age
+  if(grepl("Maternal Age", s, fixed = TRUE)) {
+    t <- str_remove(s, "Maternal Age ")
+    return(paste("  ", t, sep =""))
+  }
+  
+  else {
+    if((s != "Resuscitated At Birth") & (s!= "NICU Admission") & (s != "Augmented Labor") &
+       (s != "Crowding Index") & (s != "Female") & (s != "Gestational Hypertension") &
+       (s != "Gestational Diabetes Mellitus") & (s != "Preeclampsia") &
+       (s != "Induced Labor") & (s != "Cesarean Section")) {
+      t <- strcap(s)
+      return(paste("  ", t, sep =""))
+    }
+    else {
+      if(s == "Female") {
+        return("Female sex")
+      }
+      if(s == "NICU Admission") {
+        return("NICU admission")
+      }
+      else {
+        return(strcap(s))
+      }
+    }
+  }
+}
+
+
+#############################################################################
+
+#SA - Cognitive
+
 SA_cog <- data[data$Location == "South Africa" & data$Test == "Cognitive",]
 
-## FOREST PLOT
 
-ci_temp <- paste("(", format(round(SA_cog$ciLow, 3), nsmall=3), 
-                 ",", format(round(SA_cog$ciHigh, 3), nsmall=3), 
-                 ")", sep = "")
+SA_cog$VariableName <- sapply(SA_cog$VariableName, fv)
+
+ci_temp <- ci_values(SA_cog$ciLow, SA_cog$ciHigh)
+smd_temp <- smd_value(SA_cog$Estimate)
 cat_temp <- as.character(SA_cog$VariableName)
-smd_temp <- format(round(SA_cog$Estimate,3), nsmall=3)
 
 
-cat <- c("Categories", "", "Parity", cat_temp[1:3], "BMI", cat_temp[4:6],
-         "Antenatal Care Visit", cat_temp[7:8], "Education", cat_temp[9:12],
-         "Drinking", cat_temp[13:15], "Complications", cat_temp[16:18],
-         "Birthweight", cat_temp[19:20])
 
-smd <- c("SMD", "", "", smd_temp[1:3], "", smd_temp[4:6],
-         "", smd_temp[7:8], "", smd_temp[9:12],
-         "", smd_temp[13:15], "", smd_temp[16:18],
-         "", smd_temp[19:20])
+cat <- c("", "Maternal factors", 
+         "Prior pregnancies", "  0 (ref)", cat_temp[1:3], 
+         "Body Mass Index (kg/m²)", cat_temp[4], "  18.5-25 (ref)", cat_temp[5:6],
+         "Antenatal care visit", cat_temp[7:8], "  >6 (ref)",
+         "Education", cat_temp[9:11], "  More than high school (ref)",
+         cat_temp[12], 
+         "Prenatal drinking", cat_temp[13:15], "  No drinking (ref)",
+         "", "Delivery and child factors", 
+         cat_temp[16:19],
+         "Birthweight", cat_temp[20:21], "  Normal birthweight (>2500g) (ref)")
+
+smd <- c("SMD", "", "", "", smd_temp[1:3], "", smd_temp[4], "", smd_temp[5:6],
+         "", smd_temp[7:8], "", "", smd_temp[9:11], "", smd_temp[12], 
+         "", smd_temp[13:15], "", "", "", smd_temp[16:19],
+         "", smd_temp[20:21], "")
 
 
-ci <- c("95% CI", "", "", ci_temp[1:3], "", ci_temp[4:6],
-        "", ci_temp[7:8], "", ci_temp[9:12],
-        "", ci_temp[13:15], "", ci_temp[16:18],
-        "", ci_temp[19:20])
+ci <- c("95% CI", "", "", "", ci_temp[1:3], "", ci_temp[4], "", ci_temp[5:6],
+        "", ci_temp[7:8], "", "", ci_temp[9:11], "", ci_temp[12], 
+        "", ci_temp[13:15], "", "", "", ci_temp[16:19], "", ci_temp[20:21], "")
 
-m <- c(NA, NA, NA, SA_cog$Estimate[1:3], NA, SA_cog$Estimate[4:6],
-       NA, SA_cog$Estimate[7:8], NA, SA_cog$Estimate[9:12],
-       NA, SA_cog$Estimate[13:15], NA, SA_cog$Estimate[16:18],
-       NA, SA_cog$Estimate[19:20])
+m <- c(NA, NA, NA, NA, smd_temp[1:3], NA, smd_temp[4], NA, smd_temp[5:6],
+       NA, smd_temp[7:8], NA, NA, smd_temp[9:11], NA, smd_temp[12], 
+       NA, smd_temp[13:15], NA, NA, NA, smd_temp[16:19],
+       NA, smd_temp[20:21], NA)
 
-l <- c(NA, NA, NA, SA_cog$ciLow[1:3], NA, SA_cog$ciLow[4:6],
-       NA, SA_cog$ciLow[7:8], NA, SA_cog$ciLow[9:12],
-       NA, SA_cog$ciLow[13:15], NA, SA_cog$ciLow[16:18],
-       NA, SA_cog$ciLow[19:20])
+l <- c(NA, NA, NA, NA, SA_cog$ciLow[1:3], NA, SA_cog$ciLow[4], NA, SA_cog$ciLow[5:6],
+       NA, SA_cog$ciLow[7:8], NA, NA, SA_cog$ciLow[9:11], NA, SA_cog$ciLow[12], 
+       NA, SA_cog$ciLow[13:15], NA, NA, NA, SA_cog$ciLow[16:19],
+       NA, SA_cog$ciLow[20:21], NA)
 
-u <- c(NA, NA, NA, SA_cog$ciHigh[1:3], NA, SA_cog$ciHigh[4:6],
-       NA, SA_cog$ciHigh[7:8], NA, SA_cog$ciHigh[9:12],
-       NA, SA_cog$ciHigh[13:15], NA, SA_cog$ciHigh[16:18],
-       NA, SA_cog$ciHigh[19:20])
+u <- c(NA, NA, NA, NA, SA_cog$ciHigh[1:3], NA, SA_cog$ciHigh[4], NA, SA_cog$ciHigh[5:6],
+       NA, SA_cog$ciHigh[7:8], NA, NA, SA_cog$ciHigh[9:11], NA, SA_cog$ciHigh[12], 
+       NA, SA_cog$ciHigh[13:15], NA, NA, NA, SA_cog$ciHigh[16:19],
+       NA, SA_cog$ciHigh[20:21], NA)
+
+
 
 sum <- c(rep(TRUE, 3), rep(FALSE, 3), TRUE, rep(FALSE, 3), TRUE, rep(FALSE, 2),
          TRUE, rep(FALSE, 4), TRUE, rep(FALSE, 3), TRUE, rep(FALSE, 3),
          TRUE, rep(FALSE, 2))
 
-  
+
 temp <- tibble(mean = m,
-       lower = l,
-       upper = u,
-       study = cat,
-       confint=ci,
-       smd = smd)
+               lower = l,
+               upper = u,
+               study = cat,
+               confint=ci,
+               smd = smd)
+
 
 temp %>%
   forestplot(labeltext = c(study, smd, confint),
-             clip = c(-0.8, 0.4),
-             is.summary = sum,
+             #clip = c(-0.8, 0.4),
+             xticks=c(-0.8,-0.6,-0.4,-0.2,0,0.2,0.4),
+             is.summary = c(TRUE, TRUE, rep(FALSE, 26), TRUE, rep(FALSE, 8)),
              new_page = TRUE,
              col = fpColors(box = "royalblue",
                             line = "darkblue"),
-             txt_gp = fpTxtGp(cex = 0.9, label = gpar(fontfamily = "serif")),
+             txt_gp = fpTxtGp(cex = 0.7, label = gpar(fontfamily = "serif")),
              graph.pos = 2,
              boxsize = 0.3,
-             title = "SA: Cognitive")
+             title = "Cognitive Scores in Cape Town, South Africa")
 
 #########################################################################################
 
